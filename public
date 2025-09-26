@@ -1,1 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Royaumes Croisés - Prototype avancé</title>
+<style>
+  :root{
+    --bg:#111;
+    --panel:#1b1b1f;
+    --accent:gold;
+    --text:#eee;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Arial,Helvetica,sans-serif}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+  header{width:100%;padding:12px 16px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center}
+  h1{margin:0;font-size:18px}
+  #gameWrap{display:flex;flex-direction:column;align-items:center;padding:6px}
+  canvas{border-radius:8px;touch-action:none;display:block;max-width:96vw;height:auto}
+  #hud{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;justify-content:center}
+  .btn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;font-size:14px}
+  .btn.primary{background:linear-gradient(90deg,#2b2be0,#6b2be0);color:white}
+  .score{color:var(--accent);font-weight:600}
+  .overlay{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:30}
+  .panel{background:#0f1720;padding:16px;border-radius:12px;min-width:320px;max-width:92vw;color:var(--text)}
+  .menu-grid{display:flex;flex-direction:column;gap:10px}
+  .small{font-size:13px;color:#bbb}
+  .row{display:flex;gap:10px;align-items:center}
+  .shop-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .item{background:#121318;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);min-width:92px;text-align:center}
+  .item button{margin-top:6px}
+  footer{position:fixed;left:0;bottom:0;width:100%;padding:8px 12px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .badge{background:#0b768b;padding:6px 8px;border-radius:999px;color:white;font-weight:600}
+  @media(min-width:900px){
+    canvas{max-width:630px}
+    .panel{min-width:420px}
+  }
+</style>
+</head>
+<body>
+<header class="center">
+  <h1>Royaumes Croisés</h1>
+  <div class="score" id="xpDisplay">XP: 0 | Coins: 0</div>
+</header>
 
+<div id="gameWrap" class="center">
+  <canvas id="board" width="630" height="630"></canvas>
+  <div id="hud">
+    <button class="btn primary" id="btnMenu">Menu</button>
+    <div id="turnInfo" class="small">Tour: <span id="tourDisplay">Blanc</span></div>
+    <div id="modeLabel" class="small">Mode: <span id="modeName">Local</span></div>
+    <div id="scoreMini" class="small">Score B: <span id="scoreB">0</span> | N: <span id="scoreN">0</span></div>
+  </div>
+</div>
+
+<div id="overlayMenu" class="overlay" style="display:none">
+  <div class="panel">
+    <h3>Menu</h3>
+    <div class="menu-grid">
+      <button class="btn" id="btnLocal">Jouer Local (2 joueurs)</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="btnSolo">Jouer contre Bot</button>
+        <select id="botDifficulty" class="btn" style="padding:6px 8px">
+          <option value="easy">Facile</option>
+          <option value="medium" selected>Moyen</option>
+          <option value="hard">Difficile</option>
+        </select>
+      </div>
+      <button class="btn" id="btnOnline">Jouer en ligne</button>
+      <button class="btn" id="btnShop">Boutique</button>
+      <div class="small">Paramètres</div>
+      <div class="row">
+        <button class="btn" id="btnResetProgress">Réinitialiser progression</button>
+        <button class="btn" id="btnCloseMenu">Fermer</button>
+      </div>
+      <div class="small">Aide : Clique sur une pièce pour voir les coups, touche pour bouger.</div>
+    </div>
+  </div>
+</div>
+
+<div id="overlayShop" class="overlay" style="display:none">
+  <div class="panel">
+    <h3>Boutique</h3>
+    <div class="small">Coins: <span id="coinsShop">0</span></div>
+    <div style="margin-top:8px">
+      <div class="small">Skins de pions</div>
+      <div class="shop-list" id="skinList"></div>
+      <div class="small" style="margin-top:10px">Plateaux</div>
+      <div class="shop-list" id="boardList"></div>
+    </div>
+    <div style="margin-top:12px" class="row">
+      <button class="btn" id="btnCloseShop">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlayOnline" class="overlay" style="display:none">
+  <div class="panel">
+    <h3>Multijoueur en ligne</h3>
+    <p class="small">Connexion au serveur en cours...</p>
+    <div class="row">
+      <button class="btn" id="btnFindOnline">Trouver un adversaire</button>
+      <button class="btn" id="btnCloseOnline">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="small">Prototype - local</div>
+  <div>
+    <button class="btn" id="btnUndo">Annuler (non)</button>
+    <button class="btn" id="btnNew">Nouvelle partie</button>
+  </div>
+</footer>
+
+<script>
+/* --------- Client JS (identique au advanced prototype) ---------- */
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const NB = 9;
+const CELL = canvas.width / NB;
+let mode = 'local';
+let botDifficulty = localStorage.getItem('botDifficulty') || 'medium';
+document.getElementById('botDifficulty').value = botDifficulty;
+let scores = { blanc:0, noir:0 };
+let playerTurn = 'blanc';
+let selected = null;
+let validMoves = [];
+let pieces = [];
+let gameOver = false;
+let profile = JSON.parse(localStorage.getItem('rc_profile')||'{}');
+if(!profile.xp) profile = { xp:0, coins:0, ownedSkins:['default'], ownedBoards:['default'], equipSkin:'default', equipBoard:'default' };
+
+const SKINS = [
+  { id:'default', name:'Classique', colorB:'red', colorW:'blue', price:0 },
+  { id:'obsidian', name:'Obsidienne', colorB:'#2b2b2b', colorW:'#9ac7ff', price:100 },
+  { id:'gold', name:'Doré', colorB:'#aa5', colorW:'#ffd36b', price:300 }
+];
+const BOARDS = [
+  {id:'default', name:'Simple', bg:'#eee', bg2:'#888', price:0},
+  {id:'forest', name:'Forêt', bg:'#e6f0de', bg2:'#cfe3b8', price:150},
+  {id:'castle', name:'Château', bg:'#efe7e0', bg2:'#d6c9bf', price:250}
+];
+const PIECE_VALUE = { 'K':100, 'G':5, 'C':3, 'S':1 };
+
+const INIT = {
+  blanc: [[0,0,'C'],[1,0,'G'],[2,0,'K'],[3,0,'G'],[4,0,'C'], [0,1,'S'],[1,1,'S'],[2,1,'S'],[3,1,'S']],
+  noir:  [[0,8,'C'],[1,8,'G'],[2,8,'K'],[3,8,'G'],[4,8,'C'], [0,7,'S'],[1,7,'S'],[2,7,'S'],[3,7,'S']]
+};
+
+function resetBoard(){
+  pieces = [];
+  for(const c of Object.keys(INIT)){
+    for(const [x,y,t] of INIT[c]){
+      pieces.push({x,y,type:t,couleur:c});
+    }
+  }
+  playerTurn = 'blanc';
+  selected = null;
+  validMoves = [];
+  gameOver = false;
+  render();
+}
+
+function getPiece(x,y){ return pieces.find(p=>p.x===x && p.y===y); }
+function getPieceFor(x,y,couleur){ return pieces.find(p=>p.x===x && p.y===y && p.couleur===couleur); }
+function removePiece(p){ const i = pieces.indexOf(p); if(i>=0) pieces.splice(i,1); }
+function ennemi(c){ return c==='blanc'?'noir':'blanc' }
+
+function coupsValidesFor(piece){
+  const moves=[];
+  const x0=piece.x, y0=piece.y;
+  if(piece.type==='K'){
+    [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]].forEach(d=>{
+      const nx=x0+d[0], ny=y0+d[1];
+      if(nx>=0 && nx<NB && ny>=0 && ny<NB){ const p=getPieceFor(nx,ny,piece.couleur); if(!p) moves.push([nx,ny]); }
+    });
+  } else if(piece.type==='G'){
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{ let nx=x0, ny=y0; while(true){ nx+=d[0]; ny+=d[1]; if(nx<0||nx>=NB||ny<0||ny>=NB) break; if(getPieceFor(nx,ny,piece.couleur)) break; moves.push([nx,ny]); if(getPieceFor(nx,ny,ennemi(piece.couleur))) break; } });
+  } else if(piece.type==='C'){
+    [[2,1],[1,2],[-1,2],[-2,1],[-2,-1],[-1,-2],[1,-2],[2,-1]].forEach(d=>{ const nx=x0+d[0], ny=y0+d[1]; if(nx>=0&&nx<NB&&ny>=0&&ny<NB){ if(!getPieceFor(nx,ny,piece.couleur)) moves.push([nx,ny]); } });
+  } else if(piece.type==='S'){
+    const dir = piece.couleur==='blanc'?1:-1;
+    const ny=y0+dir;
+    if(ny>=0 && ny<NB){
+      if(!getPiece(x0,ny)) moves.push([x0,ny]);
+      for(const dx of [-1,1]){ const nx=x0+dx; if(nx>=0&&nx<NB){ const p=getPiece(nx,ny); if(p && p.couleur!==piece.couleur) moves.push([nx,ny]); } }
+    }
+  }
+  return moves;
+}
+
+function getSkinColors(){ const skin = SKINS.find(s=>s.id===profile.equipSkin) || SKINS[0]; return { white:skin.colorW, black:skin.colorB }; }
+function getBoardColors(){ const bd = BOARDS.find(b=>b.id===profile.equipBoard) || BOARDS[0]; return { c1:bd.bg, c2:bd.bg2 }; }
+
+function render(){
+  const {c1,c2} = getBoardColors();
+  for(let y=0;y<NB;y++){ for(let x=0;x<NB;x++){ ctx.fillStyle = (x+y)%2===0 ? c1 : c2; ctx.fillRect(x*CELL, y*CELL, CELL, CELL); } }
+  ctx.lineWidth=3; ctx.strokeStyle='lime';
+  validMoves.forEach(m=>{ ctx.strokeRect(m[0]*CELL+4, m[1]*CELL+4, CELL-8, CELL-8); });
+  const skin = getSkinColors();
+  for(const p of pieces){
+    const cx = p.x*CELL + CELL/2; const cy = p.y*CELL + CELL/2;
+    const g = ctx.createRadialGradient(cx-8,cy-8,6,cx,cy, CELL/2);
+    const fill = (p.couleur==='blanc')?skin.white:skin.black;
+    g.addColorStop(0,'#fff2'); g.addColorStop(0.2, fill); g.addColorStop(1, '#00000022');
+    ctx.beginPath(); ctx.fillStyle = g; ctx.arc(cx, cy, CELL*0.32, 0, Math.PI*2); ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle='#0008'; ctx.stroke();
+    ctx.fillStyle = '#000'; ctx.font = `bold ${Math.floor(CELL*0.34)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(p.type, cx, cy+1);
+  }
+  document.getElementById('tourDisplay').textContent = playerTurn.charAt(0).toUpperCase()+playerTurn.slice(1);
+  document.getElementById('modeName').textContent = mode === 'local' ? 'Local' : (mode==='solo' ? ('Solo - ' + botDifficulty) : 'En ligne');
+  document.getElementById('scoreB').textContent = scores.blanc; document.getElementById('scoreN').textContent = scores.noir;
+  updateProfileUI();
+}
+
+function trySelect(x,y){ if(gameOver) return; const p = getPieceFor(x,y,playerTurn); if(p){ selected = p; validMoves = coupsValidesFor(p); render(); return; } if(selected){ if(validMoves.some(m=>m[0]===x && m[1]===y)){ doMove(selected, x, y); } selected = null; validMoves = []; render(); } }
+
+function doMove(piece, nx, ny){
+  const cible = getPiece(nx, ny); if(cible) removePiece(cible);
+  piece.x = nx; piece.y = ny;
+  if(piece.type==='S'){ if((piece.couleur==='blanc' && piece.y===NB-1) || (piece.couleur==='noir' && piece.y===0)){ piece.type='G'; } }
+  const enemy = ennemi(playerTurn);
+  if(!pieces.find(p=>p.couleur===enemy && p.type==='K') || pieces.filter(p=>p.couleur===enemy).length < 2){
+    gameOver = true; scores[playerTurn] += 1; grantRewards(playerTurn);
+    setTimeout(()=>{ alert('Victoire de ' + playerTurn.toUpperCase()); resetBoard(); render(); }, 150); return;
+  }
+  playerTurn = enemy;
+  if(mode==='solo' && playerTurn==='noir'){ setTimeout(()=> botPlay(), 350); }
+}
+
+function allMovesFor(couleur){ const list=[]; for(const p of pieces.filter(pp=>pp.couleur===couleur)){ const mv = coupsValidesFor(p); mv.forEach(m=> list.push({piece:p, to:m})); } return list; }
+function botPlay(){ const diff = botDifficulty; const moves = allMovesFor('noir'); if(moves.length===0){ gameOver=true; return; } if(diff==='easy'){ const m = moves[Math.floor(Math.random()*moves.length)]; doMove(m.piece, m.to[0], m.to[1]); render(); return; } const captures = moves.filter(m=> getPiece(m.to[0],m.to[1])); if(diff==='medium' && captures.length>0){ let kingCap = captures.find(m=> getPiece(m.to[0],m.to[1]).type==='K'); const chosen = kingCap || captures[Math.floor(Math.random()*captures.length)]; doMove(chosen.piece, chosen.to[0], chosen.to[1]); render(); return; } if(diff==='hard'){ let best = null; let bestScore = -9999; for(const m of moves){ const target = getPiece(m.to[0], m.to[1]); let score = 0; if(target) score += (PIECE_VALUE[target.type]||1) * 10; if(m.piece.type==='S') score += (m.to[1] * (m.piece.couleur==='blanc'?1:-1)); if(score > bestScore){ bestScore = score; best = m; } } if(best){ doMove(best.piece, best.to[0], best.to[1]); render(); return; } const m = moves[Math.floor(Math.random()*moves.length)]; doMove(m.piece, m.to[0], m.to[1]); render(); } }
+
+function grantRewards(winner){ const xpGain = 50; const coinGain = 20; profile.xp = (profile.xp||0) + xpGain; profile.coins = (profile.coins||0) + coinGain; saveProfile(); }
+function saveProfile(){ localStorage.setItem('rc_profile', JSON.stringify(profile)); updateProfileUI(); }
+function updateProfileUI(){ document.getElementById('xpDisplay').textContent = `XP: ${profile.xp||0} | Coins: ${profile.coins||0}`; document.getElementById('coinsShop').textContent = profile.coins||0; }
+
+function openShop(){ document.getElementById('overlayShop').style.display='flex'; const skinList = document.getElementById('skinList'); skinList.innerHTML=''; SKINS.forEach(s=>{ const owned = profile.ownedSkins && profile.ownedSkins.includes(s.id); const div = document.createElement('div'); div.className='item'; div.innerHTML = `<div style="font-weight:600">${s.name}</div><div style="height:28px;margin-top:6px;background:${s.colorW};border-radius:6px"></div><div style="margin-top:6px">${owned?'<span class=\"small\">Possédé</span>':'Prix: '+s.price+'c'}</div>`; const btn = document.createElement('button'); btn.className='btn'; btn.textContent = owned ? (profile.equipSkin===s.id ? 'Équipé' : 'Équiper') : 'Acheter'; btn.onclick = ()=>{ if(owned){ profile.equipSkin = s.id; saveProfile(); render(); } else { if(profile.coins >= s.price){ profile.coins -= s.price; profile.ownedSkins.push(s.id); profile.equipSkin = s.id; saveProfile(); render(); } else alert('Pas assez de coins'); } openShop(); }; div.appendChild(btn); skinList.appendChild(div); }); const boardList = document.getElementById('boardList'); boardList.innerHTML=''; BOARDS.forEach(b=>{ const owned = profile.ownedBoards && profile.ownedBoards.includes(b.id); const div = document.createElement('div'); div.className='item'; div.innerHTML = `<div style=\"font-weight:600\">${b.name}</div><div style=\"height:28px;margin-top:6px;background:linear-gradient(90deg, ${b.bg}, ${b.bg2});border-radius:6px\"></div><div style=\"margin-top:6px\">${owned?'<span class=\"small\">Possédé</span>':'Prix: '+b.price+'c'}</div>`; const btn = document.createElement('button'); btn.className='btn'; btn.textContent = owned ? (profile.equipBoard===b.id ? 'Équipé' : 'Équiper') : 'Acheter'; btn.onclick = ()=>{ if(owned){ profile.equipBoard = b.id; saveProfile(); render(); } else { if(profile.coins >= b.price){ profile.coins -= b.price; profile.ownedBoards.push(b.id); profile.equipBoard = b.id; saveProfile(); render(); } else alert('Pas assez de coins'); } openShop(); }; div.appendChild(btn); boardList.appendChild(div); }); }
+
+canvas.addEventListener('pointerdown', e=>{ const rect = canvas.getBoundingClientRect(); const x = Math.floor((e.clientX - rect.left) / CELL); const y = Math.floor((e.clientY - rect.top) / CELL); trySelect(x,y); });
+
+document.getElementById('btnMenu').onclick = ()=> { document.getElementById('overlayMenu').style.display='flex'; };
+document.getElementById('btnCloseMenu').onclick = ()=> { document.getElementById('overlayMenu').style.display='none'; };
+document.getElementById('btnShop').onclick = ()=> { document.getElementById('overlayMenu').style.display='none'; openShop(); };
+document.getElementById('btnCloseShop').onclick = ()=> { document.getElementById('overlayShop').style.display='none'; render(); };
+document.getElementById('btnLocal').onclick = ()=> { document.getElementById('overlayMenu').style.display='none'; mode='local'; resetBoard(); render(); };
+document.getElementById('btnSolo').onclick = ()=> { document.getElementById('overlayMenu').style.display='none'; mode='solo'; botDifficulty = document.getElementById('botDifficulty').value; localStorage.setItem('botDifficulty', botDifficulty); resetBoard(); render(); };
+document.getElementById('btnOnline').onclick = ()=> { document.getElementById('overlayMenu').style.display='none'; document.getElementById('overlayOnline').style.display='flex'; connectWsIfNeeded(); };
+document.getElementById('btnCloseOnline').onclick = ()=> { document.getElementById('overlayOnline').style.display='none'; };
+document.getElementById('btnNew').onclick = ()=> { resetBoard(); render(); };
+document.getElementById('btnResetProgress').onclick = ()=> { if(confirm('Supprimer progression ?')){ localStorage.removeItem('rc_profile'); profile = { xp:0, coins:0, ownedSkins:['default'], ownedBoards:['default'], equipSkin:'default', equipBoard:'default' }; saveProfile(); render(); } }
+document.getElementById('botDifficulty').onchange = (e)=> { botDifficulty = e.target.value; localStorage.setItem('botDifficulty', botDifficulty); }
+document.getElementById('btnFindOnline').onclick = ()=> { findOnlineMatch(); };
+
+window.addEventListener('keydown', (e)=>{ if(e.key==='r') { resetBoard(); render(); } });
+
+resetBoard();
+render();
+
+/* -------- WebSocket client integration -------- */
+let ws = null;
+let currentOnlineGame = null;
+let myProfileId = localStorage.getItem('rc_profile_id') || null;
+if(!myProfileId){
+  myProfileId = 'guest-'+Math.random().toString(36).slice(2,9);
+  localStorage.setItem('rc_profile_id', myProfileId);
+}
+
+function connectWs((location.protocol === "https:" ? "wss://" : "ws://") + location.host){
+  if(ws && ws.readyState === WebSocket.OPEN) return;
+  ws = new WebSocket(serverUrl);
+  ws.onopen = () => { console.log('WS connected'); };
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if(msg.type === 'waiting'){ alert('En attente d\\'un adversaire...'); }
+    else if(msg.type === 'matchFound'){
+      const gameId = msg.gameId; const color = msg.color;
+      mode = 'online'; resetBoard(); currentOnlineGame = { gameId, myColor: color }; playerTurn = 'blanc'; render();
+      alert('Match trouvé ! Tu es ' + color);
+    } else if(msg.type === 'opponentMove'){
+      const mv = msg.move;
+      const p = getPiece(mv.from[0], mv.from[1]);
+      if(p){ doMove(p, mv.to[0], mv.to[1]); }
+      render();
+    } else if(msg.type === 'gameOver'){
+      alert('Game over: ' + msg.reason);
+    }
+  };
+  ws.onclose = () => console.log('WS closed');
+  ws.onerror = (e) => console.log('WS error', e);
+}
+
+function connectWsIfNeeded(){
+  if(!ws || ws.readyState !== WebSocket.OPEN){
+    const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    connectWs((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
+  }
+}
+
+function findOnlineMatch(){
+  if(!ws || ws.readyState !== WebSocket.OPEN){
+    connectWsIfNeeded();
+    setTimeout(()=> { if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type:'findMatch', profileId: myProfileId })); }, 400);
+  } else {
+    ws.send(JSON.stringify({ type:'findMatch', profileId: myProfileId }));
+  }
+}
+
+function sendOnlineMove(gameId, move){
+  if(ws && ws.readyState === WebSocket.OPEN){
+    ws.send(JSON.stringify({ type:'move', gameId, move }));
+  }
+}
+
+/* integrate sending move on online games */
+// Modify doMove to send when online
+const originalDoMove = doMove;
+function doMoveWrapper(piece, nx, ny){
+  // find from coords
+  const moveData = { from:[piece.x, piece.y], to:[nx, ny], pieceType: piece.type };
+  originalDoMove(piece, nx, ny);
+  if(mode==='online' && currentOnlineGame){
+    sendOnlineMove(currentOnlineGame.gameId, moveData);
+  }
+}
+doMove = doMoveWrapper;
+
+/* -------- Minimax AI (optional) -------- */
+// For advanced difficulty we can implement minimax; omitted here for brevity
+
+/* -------- Profile cloud save helper -------- */
+function saveProfileCloud(){
+  const id = localStorage.getItem('rc_profile_id');
+  fetch('/saveProfile', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id, profile })
+  }).then(r=>r.json()).then(console.log).catch(console.error);
+}
+</script>
+</body>
+</html>
