@@ -268,7 +268,7 @@ if(!myProfileId){
   localStorage.setItem('rc_profile_id', myProfileId);
 }
 
-function connectWs(serverUrl){
+function connectWs((location.protocol === "https:" ? "wss://" : "ws://") + location.host){
   if(ws && ws.readyState === WebSocket.OPEN) return;
   ws = new WebSocket(serverUrl);
   ws.onopen = () => { console.log('WS connected'); };
@@ -295,7 +295,7 @@ function connectWs(serverUrl){
 function connectWsIfNeeded(){
   if(!ws || ws.readyState !== WebSocket.OPEN){
     const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
-    connectWs(WS_URL);
+    connectWs((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
   }
 }
 
