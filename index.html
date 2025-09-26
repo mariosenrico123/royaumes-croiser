@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Royaumes Croisés - Prototype avancé</title>
+  <style>
+    body { margin:0; padding:0; background:#111; color:white; font-family:sans-serif; }
+    #game { width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <h1>Bienvenue dans Royaumes Croisés 🎮</h1>
+  </div>
+
+  <script>
+    function connectWs(url) {
+      const ws = new WebSocket(url);
+      ws.onopen = () => console.log("✅ Connecté au serveur");
+      ws.onmessage = (msg) => console.log("📩 Message :", msg.data);
+      ws.onclose = () => console.log("❌ Déconnecté");
+    }
+    const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+    connectWs(WS_URL);
+  </script>
+</body>
+</html>
