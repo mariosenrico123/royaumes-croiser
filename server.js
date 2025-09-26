@@ -5,10 +5,16 @@ const WebSocket = require('ws');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
+const path = require('path'); // ✅ nécessaire pour servir index.html
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static('public'));
+app.use(express.static('public')); // ✅ sert tout le dossier "public"
+
+// ✅ route par défaut : ouvre index.html quand on va sur /
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -40,17 +46,22 @@ app.get('/profile/:id', (req, res) => {
 });
 
 app.get('/leaderboard', (req, res) => {
-  // simple leaderboard from profiles by xp
-  const list = Object.keys(profiles).map(id => ({ id, xp: profiles[id].xp || 0, coins: profiles[id].coins || 0 }));
+  const list = Object.keys(profiles).map(id => ({
+    id,
+    xp: profiles[id].xp || 0,
+    coins: profiles[id].coins || 0
+  }));
   list.sort((a,b)=>b.xp - a.xp);
   res.json(list.slice(0,50));
 });
 
+// WebSocket matchmaking
 wss.on('connection', (ws) => {
   ws.id = uuidv4();
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data); } catch(e) { return; }
+
     if (msg.type === 'findMatch') {
       if (waiting && waiting.readyState === WebSocket.OPEN && waiting !== ws) {
         const gameId = uuidv4();
@@ -66,7 +77,9 @@ wss.on('connection', (ws) => {
         waiting = ws;
         ws.send(JSON.stringify({ type: 'waiting' }));
       }
-    } else if (msg.type === 'move') {
+    }
+
+    else if (msg.type === 'move') {
       const gameId = msg.gameId;
       if (!gameId || !games[gameId]) {
         ws.send(JSON.stringify({ type:'error', message:'invalid gameId' }));
@@ -77,7 +90,9 @@ wss.on('connection', (ws) => {
       if (other && other.readyState === WebSocket.OPEN) {
         other.send(JSON.stringify({ type:'opponentMove', move: msg.move }));
       }
-    } else if (msg.type === 'resign') {
+    }
+
+    else if (msg.type === 'resign') {
       const gameId = msg.gameId;
       if (games[gameId]) {
         const players = games[gameId].players;
